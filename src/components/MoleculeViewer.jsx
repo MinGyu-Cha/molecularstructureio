@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Engine, Scene, ArcRotateCamera, Vector3, HemisphericLight, SceneLoader, Color4, BoundingInfo } from '@babylonjs/core';
 import '@babylonjs/loaders';
+import glbURL from '/Caffeine.glb?url'; // Use Vite's explicit asset URL import
 
 const BabylonScene = () => {
     const reactCanvas = useRef(null);
@@ -20,11 +21,10 @@ const BabylonScene = () => {
         const light = new HemisphericLight("light", new Vector3(1, 1, 0), scene);
         light.intensity = 1.5;
         
-        SceneLoader.ImportMeshAsync("", "/Caffeine.glb", "", scene)
+        SceneLoader.ImportMeshAsync(null, glbURL, "", scene) // Use the imported URL
             .then((result) => {
                 const rootMesh = result.meshes[0];
                 
-                // Manually calculate the bounding box of all meshes
                 let min = new Vector3(Infinity, Infinity, Infinity);
                 let max = new Vector3(-Infinity, -Infinity, -Infinity);
 
@@ -38,16 +38,14 @@ const BabylonScene = () => {
                 const center = boundingInfo.boundingSphere.center;
                 const radius = boundingInfo.boundingSphere.radius;
                 
-                // Frame the camera
                 camera.target = center;
-                camera.radius = radius * 3; // Add some padding
+                camera.radius = radius * 3; 
                 camera.lowerRadiusLimit = radius / 2;
                 camera.upperRadiusLimit = radius * 10;
 
             })
             .catch((error) => {
                 console.error("Failed to load GLB model:", error);
-                // On error, make the background red as a visual indicator
                 scene.clearColor = new Color4(1, 0, 0, 1);
             });
 
