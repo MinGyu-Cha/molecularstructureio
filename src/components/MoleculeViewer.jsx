@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { PDBLoader } from 'three/examples/jsm/loaders/PDBLoader.js';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+// import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'; // DEBUG: Controls disabled
 import pdbURL from '/caffeine.pdb?url';
 
 const ProgressBar = ({ value }) => (
@@ -48,7 +48,7 @@ const MoleculeViewer = () => {
             return;
         }
 
-        let scene, camera, renderer, controls;
+        let scene, camera, renderer; //, controls; // DEBUG: Controls disabled
 
         scene = new THREE.Scene();
         scene.background = new THREE.Color(0x000000);
@@ -59,11 +59,11 @@ const MoleculeViewer = () => {
         renderer.setSize(window.innerWidth, window.innerHeight);
         currentMount.appendChild(renderer.domElement);
 
-        controls = new OrbitControls(camera, renderer.domElement);
-        controls.enableDamping = true;
-        controls.dampingFactor = 0.05;
-        // Further debugging for right-click: try changing to DOLLY
-        controls.mouseButtons.RIGHT = THREE.MOUSE.DOLLY;
+        // --- DEBUG: Controls disabled ---
+        // controls = new OrbitControls(camera, renderer.domElement);
+        // controls.enableDamping = true;
+        // controls.dampingFactor = 0.05;
+        // controls.mouseButtons.RIGHT = THREE.MOUSE.DOLLY;
 
         const light = new THREE.DirectionalLight(0xffffff, 0.8);
         light.position.set(1, 1, 1);
@@ -78,9 +78,6 @@ const MoleculeViewer = () => {
             setProgress(100);
             const { geometry, json } = pdb;
             
-            // --- DEBUGGING: Render a single sphere at the molecule's calculated center ---
-
-            // First, create the full molecule in a group to calculate its bounding box
             const root = new THREE.Group();
             const positions = geometry.getAttribute('position');
             for (let i = 0; i < positions.count; i++) {
@@ -92,33 +89,15 @@ const MoleculeViewer = () => {
                 sphere.scale.multiplyScalar(5);
                 root.add(sphere);
             }
-            const bonds = json.connections;
-            for (let i = 0; i < bonds.length; i++) {
-                 const bond = bonds[i];
-                const start = bond[0] - 1;
-                const end = bond[1] - 1;
-                const startPos = new THREE.Vector3().fromBufferAttribute(positions, start);
-                const endPos = new THREE.Vector3().fromBufferAttribute(positions, end);
-
-                const path = new THREE.CatmullRomCurve3([startPos, endPos]);
-                const bondGeometry = new THREE.TubeGeometry(path, 1, 2, 8, false);
-                const material = new THREE.MeshPhongMaterial({ color: 0xcccccc });
-                const tube = new THREE.Mesh(bondGeometry, material);
-                root.add(tube);
-            }
-
-            // Calculate bounding box from the invisible full model
+            
             const box = new THREE.Box3().setFromObject(root);
             const center = box.getCenter(new THREE.Vector3());
             const size = box.getSize(new THREE.Vector3());
             const maxDim = Math.max(size.x, size.y, size.z);
 
-            console.log('Bounding Box Center:', center);
-            console.log('Bounding Box Size:', size);
-
             // Create a single large red sphere at the center
             const debugSphere = new THREE.Mesh(
-                new THREE.SphereGeometry(maxDim / 4, 32, 32), // Make it a noticeable size
+                new THREE.SphereGeometry(maxDim / 4, 32, 32),
                 new THREE.MeshPhongMaterial({ color: 'red' })
             );
             debugSphere.position.copy(center);
@@ -126,12 +105,14 @@ const MoleculeViewer = () => {
 
             // Frame the camera on the debug sphere
             const fov = camera.fov * (Math.PI / 180);
-            let cameraZ = Math.abs(size.y / 2 / Math.tan(fov / 2));
-            cameraZ *= 2; // Add some padding
+            // BUG FIX: Use maxDim instead of size.y for a robust calculation
+            let cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2));
+            cameraZ *= 2; 
 
             camera.position.set(center.x, center.y, center.z + cameraZ);
-            controls.target.copy(center);
-            controls.update();
+            // controls.target.copy(center); // DEBUG: Controls disabled
+            // controls.update(); // DEBUG: Controls disabled
+            camera.lookAt(center); // Manually point camera since controls are off
         },
         (xhr) => { // onProgress
             if (xhr.lengthComputable) {
@@ -140,12 +121,12 @@ const MoleculeViewer = () => {
         },
         (error) => { // onError
             console.error('An error happened during PDB loading:', error);
-            setProgress(100); // Hide progress bar on error
+            setProgress(100);
         });
 
         const animate = () => {
             requestAnimationFrame(animate);
-            controls.update();
+            // controls.update(); // DEBUG: Controls disabled
             renderer.render(scene, camera);
         };
 
