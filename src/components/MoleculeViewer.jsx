@@ -1,9 +1,46 @@
-import { useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import * as THREE from 'three';
+import { PDBLoader } from 'three/examples/jsm/loaders/PDBLoader.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import pdbURL from '/caffeine.pdb?url';
+
+const ProgressBar = ({ value }) => (
+    <div style={{
+        position: 'absolute',
+        top: '50%',
+        left: '50%',
+        transform: 'translate(-50%, -50%)',
+        width: '300px',
+        height: '20px',
+        backgroundColor: '#555',
+        borderRadius: '10px',
+        overflow: 'hidden',
+        zIndex: 100,
+    }}>
+        <div style={{
+            width: `${value}%`,
+            height: '100%',
+            backgroundColor: '#fff',
+            transition: 'width 0.1s linear',
+        }} />
+        <div style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            textAlign: 'center',
+            lineHeight: '20px',
+            color: '#000',
+        }}>
+            {Math.round(value)}%
+        </div>
+    </div>
+);
 
 const MoleculeViewer = () => {
     const mountRef = useRef(null);
+    const [progress, setProgress] = useState(0);
 
     useEffect(() => {
         const currentMount = mountRef.current;
@@ -14,10 +51,9 @@ const MoleculeViewer = () => {
         let scene, camera, renderer, controls;
 
         scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x1a1a1a); // A slightly lighter black
+        scene.background = new THREE.Color(0x1a1a1a);
 
         camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.z = 5;
         
         renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
@@ -25,20 +61,82 @@ const MoleculeViewer = () => {
 
         controls = new OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
-        // Apply the fix for right-click. This should work now.
-        controls.mouseButtons.RIGHT = THREE.MOUSE.ROTATE;
+        // Attempt #2 for right-click fix
+        controls.mouseButtons.RIGHT = THREE.MOUSE.DOLLY;
 
         const light = new THREE.DirectionalLight(0xffffff, 1);
         light.position.set(1, 1, 1);
         scene.add(light);
         scene.add(new THREE.AmbientLight(0xffffff, 0.5));
 
-        // A single red sphere at the origin
-        const sphere = new THREE.Mesh(
-            new THREE.SphereGeometry(1, 32, 32),
-            new THREE.MeshPhongMaterial({ color: 'red' })
-        );
-        scene.add(sphere);
+        const loader = new PDBLoader();
+        loader.load(pdbURL,
+        (pdb) => { // onLoad
+            try {
+                setProgress(100);
+                const { geometry, json } = pdb;
+                const positions = geometry.getAttribute('position');
+                const colors = geometry.getAttribute('color');
+                const sphereGeometry = new THREE.IcosahedronGeometry(1, 3);
+                const root = new THREE.Group();
+
+                for (let i = 0; i < positions.count; i++) {
+                    const position = new THREE.Vector3().fromBufferAttribute(positions, i);
+                    const color = new THREE.Color().fromBufferAttribute(colors, i);
+                    const material = new THREE.MeshPhongMaterial({ color });
+                    const sphere = new THREE.Mesh(sphereGeometry, material);
+                    sphere.position.copy(position);
+                    sphere.scale.multiplyScalar(5);
+                    root.add(sphere);
+                }
+
+                const bonds = json.connections;
+                for (let i = 0; i < bonds.length; i++) {
+                    const bond = bonds[i];
+                    const start = bond[0] - 1;
+                    const end = bond[1] - 1;
+                    const startPos = new THREE.Vector3().fromBufferAttribute(positions, start);
+                    const endPos = new THREE.Vector3().fromBufferAttribute(positions, end);
+
+                    const path = new THREE.CatmullRomCurve3([startPos, endPos]);
+                    const bondGeometry = new THREE.TubeGeometry(path, 1, 2, 8, false);
+                    const material = new THREE.MeshPhongMaterial({ color: 0xcccccc });
+                    const tube = new THREE.Mesh(bondGeometry, material);
+                    root.add(tube);
+                }
+                scene.add(root);
+
+                const box = new THREE.Box3().setFromObject(root);
+                const center = box.getCenter(new THREE.Vector3());
+                const size = box.getSize(new THREE.Vector3());
+                const maxDim = Math.max(size.x, size.y, size.z);
+                const fov = camera.fov * (Math.PI / 180);
+                let cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2));
+                cameraZ *= 2;
+
+                camera.position.set(center.x, center.y, center.z + cameraZ);
+                controls.target.copy(center);
+                controls.update();
+            } catch (error) {
+                console.error("Failed to process and render PDB model:", error);
+                // Fallback: render a red sphere if model processing fails
+                const errorSphere = new THREE.Mesh(
+                    new THREE.SphereGeometry(1, 32, 32),
+                    new THREE.MeshPhongMaterial({ color: 'red' })
+                );
+                scene.add(errorSphere);
+                camera.position.z = 5;
+            }
+        },
+        (xhr) => { // onProgress
+            if (xhr.lengthComputable) {
+                setProgress((xhr.loaded / xhr.total) * 100);
+            }
+        },
+        (error) => { // onError
+            console.error('An error happened during PDB loading:', error);
+            setProgress(100);
+        });
 
         const animate = () => {
             requestAnimationFrame(animate);
@@ -63,7 +161,12 @@ const MoleculeViewer = () => {
         };
     }, []);
 
-    return <div ref={mountRef} style={{ width: '100vw', height: '100vh' }} />;
+    return (
+        <>
+            {progress < 100 && <ProgressBar value={progress} />}
+            <div ref={mountRef} style={{ width: '100vw', height: '100vh' }} />
+        </>
+    );
 };
 
 export default MoleculeViewer;
