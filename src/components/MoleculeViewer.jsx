@@ -1,75 +1,36 @@
-import { useEffect, useRef } from 'react';
-import { Engine, Scene, ArcRotateCamera, Vector3, HemisphericLight, SceneLoader, Color4, BoundingInfo } from '@babylonjs/core';
-import '@babylonjs/loaders';
-import glbURL from '/Caffeine.glb?url'; // Use Vite's explicit asset URL import
-
-const BabylonScene = () => {
-    const reactCanvas = useRef(null);
-
-    useEffect(() => {
-        if (!reactCanvas.current) {
-            return;
-        }
-
-        const engine = new Engine(reactCanvas.current, true);
-        const scene = new Scene(engine);
-        scene.clearColor = new Color4(0.2, 0.2, 0.2, 1);
-        
-        const camera = new ArcRotateCamera("camera", -Math.PI / 2, Math.PI / 2.5, 10, Vector3.Zero(), scene);
-        camera.attachControl(reactCanvas.current, true);
-        
-        const light = new HemisphericLight("light", new Vector3(1, 1, 0), scene);
-        light.intensity = 1.5;
-        
-        SceneLoader.ImportMeshAsync(null, glbURL, "", scene) // Use the imported URL
-            .then((result) => {
-                const rootMesh = result.meshes[0];
-                
-                let min = new Vector3(Infinity, Infinity, Infinity);
-                let max = new Vector3(-Infinity, -Infinity, -Infinity);
-
-                rootMesh.getChildMeshes().forEach((mesh) => {
-                    let meshBoundingBox = mesh.getBoundingInfo().boundingBox;
-                    min.minimizeInPlace(meshBoundingBox.minimumWorld);
-                    max.maximizeInPlace(meshBoundingBox.maximumWorld);
-                });
-
-                const boundingInfo = new BoundingInfo(min, max);
-                const center = boundingInfo.boundingSphere.center;
-                const radius = boundingInfo.boundingSphere.radius;
-                
-                camera.target = center;
-                camera.radius = radius * 3; 
-                camera.lowerRadiusLimit = radius / 2;
-                camera.upperRadiusLimit = radius * 10;
-
-            })
-            .catch((error) => {
-                console.error("Failed to load GLB model:", error);
-                scene.clearColor = new Color4(1, 0, 0, 1);
-            });
-
-        engine.runRenderLoop(() => {
-            scene.render();
-        });
-
-        const resize = () => {
-            engine.resize();
-        };
-
-        window.addEventListener('resize', resize);
-
-        return () => {
-            window.removeEventListener('resize', resize);
-            engine.dispose();
-        };
-    }, []);
-
-    return <canvas ref={reactCanvas} style={{ width: '100%', height: '100%', outline: 'none' }} />;
-};
+import React from 'react';
 
 const MoleculeViewer = () => {
-    return <BabylonScene />;
+  return (
+    <div style={{
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      width: '100vw',
+      height: '100vh',
+      backgroundColor: '#f0f0f0'
+    }}>
+      <svg width="300" height="300" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <title>Stylized Molecule</title>
+        {/* Bonds */}
+        <line x1="50" y1="50" x2="30" y2="40" stroke="black" strokeWidth="1" />
+        <line x1="50" y1="50" x2="60" y2="30" stroke="black" strokeWidth="1" />
+        <line x1="50" y1="50" x2="70" y2="60" stroke="black" strokeWidth="1" />
+        <line x1="30" y1="40" x2="15" y2="55" stroke="black" strokeWidth="1" />
+        <line x1="70" y1="60" x2="60" y2="80" stroke="black" strokeWidth="1" />
+        <line x1="70" y1="60" x2="90" y2="55" stroke="black" strokeWidth="1" />
+        
+        {/* Atoms */}
+        <circle cx="50" cy="50" r="5" fill="red" />
+        <circle cx="30" cy="40" r="4" fill="blue" />
+        <circle cx="60" cy="30" r="4" fill="blue" />
+        <circle cx="70" cy="60" r="5" fill="red" />
+        <circle cx="15" cy="55" r="4" fill="green" />
+        <circle cx="60" cy="80" r="4" fill="green" />
+        <circle cx="90" cy="55" r="4" fill="blue" />
+      </svg>
+    </div>
+  );
 };
 
 export default MoleculeViewer;
