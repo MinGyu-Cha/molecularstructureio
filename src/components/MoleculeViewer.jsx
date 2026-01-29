@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { PDBLoader } from 'three/examples/jsm/loaders/PDBLoader.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import pdbURL from '/caffeine.pdb?url';
 
 const MoleculeViewer = () => {
     const mountRef = useRef(null);
@@ -27,7 +28,7 @@ const MoleculeViewer = () => {
             scene.add(ambientLight);
 
             const loader = new PDBLoader();
-            loader.load('/caffeine.pdb', (pdb) => {
+            loader.load(pdbURL, (pdb) => {
                 const { geometry, json } = pdb;
                 const positions = geometry.getAttribute('position');
                 const colors = geometry.getAttribute('color');
