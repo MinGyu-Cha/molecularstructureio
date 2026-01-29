@@ -1,11 +1,46 @@
-import { useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { PDBLoader } from 'three/examples/jsm/loaders/PDBLoader.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import pdbURL from '/caffeine.pdb?url';
 
+const ProgressBar = ({ value }) => (
+    <div style={{
+        position: 'absolute',
+        top: '50%',
+        left: '50%',
+        transform: 'translate(-50%, -50%)',
+        width: '300px',
+        height: '20px',
+        backgroundColor: '#555',
+        borderRadius: '10px',
+        overflow: 'hidden',
+        zIndex: 100,
+    }}>
+        <div style={{
+            width: `${value}%`,
+            height: '100%',
+            backgroundColor: '#fff',
+            transition: 'width 0.1s linear',
+        }} />
+        <div style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            textAlign: 'center',
+            lineHeight: '20px',
+            color: '#000',
+        }}>
+            {Math.round(value)}%
+        </div>
+    </div>
+);
+
 const MoleculeViewer = () => {
     const mountRef = useRef(null);
+    const [progress, setProgress] = useState(0);
 
     useEffect(() => {
         const currentMount = mountRef.current;
@@ -27,6 +62,8 @@ const MoleculeViewer = () => {
         controls = new OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
         controls.dampingFactor = 0.05;
+        // Re-enable right-click context menu
+        controls.mouseButtons.RIGHT = THREE.MOUSE.ROTATE;
 
         const light = new THREE.DirectionalLight(0xffffff, 0.8);
         light.position.set(1, 1, 1);
@@ -36,7 +73,9 @@ const MoleculeViewer = () => {
         scene.add(ambientLight);
 
         const loader = new PDBLoader();
-        loader.load(pdbURL, (pdb) => {
+        loader.load(pdbURL, 
+        (pdb) => { // onLoad
+            setProgress(100);
             const { geometry, json } = pdb;
             const positions = geometry.getAttribute('position');
             const colors = geometry.getAttribute('color');
@@ -77,11 +116,20 @@ const MoleculeViewer = () => {
             const maxDim = Math.max(size.x, size.y, size.z);
             const fov = camera.fov * (Math.PI / 180);
             let cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2));
-            cameraZ *= 1.5; // Add some padding
+            cameraZ *= 1.5;
 
             camera.position.set(center.x, center.y, center.z + cameraZ);
             controls.target.copy(center);
             controls.update();
+        },
+        (xhr) => { // onProgress
+            if (xhr.lengthComputable) {
+                setProgress((xhr.loaded / xhr.total) * 100);
+            }
+        },
+        (error) => { // onError
+            console.error('An error happened during PDB loading:', error);
+            setProgress(100); // Hide progress bar on error
         });
 
         const animate = () => {
@@ -110,7 +158,12 @@ const MoleculeViewer = () => {
         };
     }, []);
 
-    return <div ref={mountRef} style={{ width: '100vw', height: '100vh' }} />;
+    return (
+        <>
+            {progress < 100 && <ProgressBar value={progress} />}
+            <div ref={mountRef} style={{ width: '100vw', height: '100vh' }} />
+        </>
+    );
 };
 
 export default MoleculeViewer;
