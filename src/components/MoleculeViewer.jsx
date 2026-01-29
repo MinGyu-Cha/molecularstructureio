@@ -16,17 +16,16 @@ const MoleculeViewer = () => {
         let scene, camera, renderer, controls;
 
         scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x000000); // Set background to black
+        scene.background = new THREE.Color(0x000000);
 
         camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.z = 200;
-
+        
         renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         currentMount.appendChild(renderer.domElement);
 
         controls = new OrbitControls(camera, renderer.domElement);
-        controls.enableDamping = true; // Animate controls for smoother feel
+        controls.enableDamping = true;
         controls.dampingFactor = 0.05;
 
         const light = new THREE.DirectionalLight(0xffffff, 0.8);
@@ -42,6 +41,7 @@ const MoleculeViewer = () => {
             const positions = geometry.getAttribute('position');
             const colors = geometry.getAttribute('color');
             const sphereGeometry = new THREE.IcosahedronGeometry(1, 3);
+            const root = new THREE.Group();
 
             for (let i = 0; i < positions.count; i++) {
                 const position = new THREE.Vector3().fromBufferAttribute(positions, i);
@@ -50,7 +50,7 @@ const MoleculeViewer = () => {
                 const sphere = new THREE.Mesh(sphereGeometry, material);
                 sphere.position.copy(position);
                 sphere.scale.multiplyScalar(5);
-                scene.add(sphere);
+                root.add(sphere);
             }
 
             const bonds = json.connections;
@@ -65,17 +65,23 @@ const MoleculeViewer = () => {
                 const bondGeometry = new THREE.TubeGeometry(path, 1, 2, 8, false);
                 const material = new THREE.MeshPhongMaterial({ color: 0xcccccc });
                 const tube = new THREE.Mesh(bondGeometry, material);
-                scene.add(tube);
+                root.add(tube);
             }
-            controls.target.copy(scene.children[scene.children.length-1].position) // set target to the last added atom
-        },
-        // onProgress callback
-        (xhr) => {
-            console.log((xhr.loaded / xhr.total * 100) + '% loaded');
-        },
-        // onError callback
-        (error) => {
-            console.error('An error happened during PDB loading:', error);
+
+            scene.add(root);
+
+            // Auto-frame the camera
+            const box = new THREE.Box3().setFromObject(root);
+            const center = box.getCenter(new THREE.Vector3());
+            const size = box.getSize(new THREE.Vector3());
+            const maxDim = Math.max(size.x, size.y, size.z);
+            const fov = camera.fov * (Math.PI / 180);
+            let cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2));
+            cameraZ *= 1.5; // Add some padding
+
+            camera.position.set(center.x, center.y, center.z + cameraZ);
+            controls.target.copy(center);
+            controls.update();
         });
 
         const animate = () => {
