@@ -14,9 +14,9 @@ const MoleculeViewer = () => {
         // Scene, Camera, Renderer
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x000000);
-        const camera = new THREE.PerspectiveCamera(75, currentMount.clientWidth / currentMount.clientHeight, 0.1, 1000);
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         const renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(currentMount.clientWidth, currentMount.clientHeight);
+        renderer.setSize(window.innerWidth, window.innerHeight);
         currentMount.appendChild(renderer.domElement);
 
         // Controls
@@ -32,11 +32,9 @@ const MoleculeViewer = () => {
 
         // Resize handler
         const handleResize = () => {
-            if (currentMount) {
-                camera.aspect = currentMount.clientWidth / currentMount.clientHeight;
-                camera.updateProjectionMatrix();
-                renderer.setSize(currentMount.clientWidth, currentMount.clientHeight);
-            }
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
         };
         window.addEventListener('resize', handleResize);
 
@@ -60,7 +58,7 @@ const MoleculeViewer = () => {
         };
     }, []);
 
-    return <div ref={mountRef} style={{ width: '100vw', height: '100vh' }} />;
+    return <div ref={mountRef} style={{ width: '100vw', height: '100vh', backgroundColor: 'red' }} />;
 };
 
 export default MoleculeViewer;
