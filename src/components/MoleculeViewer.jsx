@@ -62,8 +62,8 @@ const MoleculeViewer = () => {
         controls = new OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
         controls.dampingFactor = 0.05;
-        // Re-enable right-click context menu
-        controls.mouseButtons.RIGHT = THREE.MOUSE.ROTATE;
+        // Further debugging for right-click: try changing to DOLLY
+        controls.mouseButtons.RIGHT = THREE.MOUSE.DOLLY;
 
         const light = new THREE.DirectionalLight(0xffffff, 0.8);
         light.position.set(1, 1, 1);
@@ -77,24 +77,24 @@ const MoleculeViewer = () => {
         (pdb) => { // onLoad
             setProgress(100);
             const { geometry, json } = pdb;
-            const positions = geometry.getAttribute('position');
-            const colors = geometry.getAttribute('color');
-            const sphereGeometry = new THREE.IcosahedronGeometry(1, 3);
-            const root = new THREE.Group();
+            
+            // --- DEBUGGING: Render a single sphere at the molecule's calculated center ---
 
+            // First, create the full molecule in a group to calculate its bounding box
+            const root = new THREE.Group();
+            const positions = geometry.getAttribute('position');
             for (let i = 0; i < positions.count; i++) {
-                const position = new THREE.Vector3().fromBufferAttribute(positions, i);
-                const color = new THREE.Color().fromBufferAttribute(colors, i);
-                const material = new THREE.MeshPhongMaterial({ color });
-                const sphere = new THREE.Mesh(sphereGeometry, material);
-                sphere.position.copy(position);
+                const sphere = new THREE.Mesh(
+                    new THREE.IcosahedronGeometry(1, 3),
+                    new THREE.MeshPhongMaterial({ color: 'white' })
+                );
+                sphere.position.fromBufferAttribute(positions, i);
                 sphere.scale.multiplyScalar(5);
                 root.add(sphere);
             }
-
             const bonds = json.connections;
             for (let i = 0; i < bonds.length; i++) {
-                const bond = bonds[i];
+                 const bond = bonds[i];
                 const start = bond[0] - 1;
                 const end = bond[1] - 1;
                 const startPos = new THREE.Vector3().fromBufferAttribute(positions, start);
@@ -107,16 +107,27 @@ const MoleculeViewer = () => {
                 root.add(tube);
             }
 
-            scene.add(root);
-
-            // Auto-frame the camera
+            // Calculate bounding box from the invisible full model
             const box = new THREE.Box3().setFromObject(root);
             const center = box.getCenter(new THREE.Vector3());
             const size = box.getSize(new THREE.Vector3());
             const maxDim = Math.max(size.x, size.y, size.z);
+
+            console.log('Bounding Box Center:', center);
+            console.log('Bounding Box Size:', size);
+
+            // Create a single large red sphere at the center
+            const debugSphere = new THREE.Mesh(
+                new THREE.SphereGeometry(maxDim / 4, 32, 32), // Make it a noticeable size
+                new THREE.MeshPhongMaterial({ color: 'red' })
+            );
+            debugSphere.position.copy(center);
+            scene.add(debugSphere);
+
+            // Frame the camera on the debug sphere
             const fov = camera.fov * (Math.PI / 180);
-            let cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2));
-            cameraZ *= 1.5;
+            let cameraZ = Math.abs(size.y / 2 / Math.tan(fov / 2));
+            cameraZ *= 2; // Add some padding
 
             camera.position.set(center.x, center.y, center.z + cameraZ);
             controls.target.copy(center);
